@@ -300,10 +300,15 @@ const DecisionSpinnerApp = () => {
         const selectedItem = options[randomIndex].name;
         const segmentAngle = 360 / options.length;
 
-        const targetSegmentCenterAngle = (randomIndex * segmentAngle) + (segmentAngle / 2);
-
+        // NEW LOGIC TO CORRECTLY ALIGN THE ARROW
+        const targetCenterAngle = (randomIndex * segmentAngle) + (segmentAngle / 2);
         const numFullSpins = 5;
-        const finalRotation = (numFullSpins * 360) + (360 - targetSegmentCenterAngle);
+        
+        // This is the key fix: we need to subtract the initial -90 degree offset.
+        // A full rotation is 360 degrees. To align the `targetCenterAngle` (which is relative to the SVG's 0-degree point)
+        // with the arrow (which is at the top), we need to rotate the wheel by `360 - (targetCenterAngle + 90)`.
+        // The +90 accounts for the SVG text rotation.
+        const finalRotation = (numFullSpins * 360) + (360 - (targetCenterAngle + 90) % 360);
 
         Animated.timing(spinValue, {
             toValue: finalRotation,
@@ -421,7 +426,7 @@ const styles = StyleSheet.create({
     },
     arrowContainer: {
         position: 'absolute',
-        top: -30,
+        top: '100%',
         left: '50%',
         transform: [{ translateX: -15 }],
         width: 0,
