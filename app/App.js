@@ -41,6 +41,17 @@ const describeArc = (x, y, radius, startAngle, endAngle) => {
 // Responsive wheel size calculation
 const getWheelDimensions = () => {
     const { width, height } = Dimensions.get('window');
+    
+    // Fallback values if dimensions are not available
+    if (!width || !height || width <= 0 || height <= 0) {
+        return {
+            wheelSize: 250,
+            centerX: 125,
+            centerY: 125,
+            radius: 125,
+        };
+    }
+
     const isLandscape = width > height;
     const isTablet = Math.min(width, height) > 600;
     const isDesktop = Math.min(width, height) > 1024;
@@ -56,6 +67,9 @@ const getWheelDimensions = () => {
         wheelSize = Math.min(width * 0.75, height * 0.35, 300);
     }
 
+    // Ensure minimum size
+    wheelSize = Math.max(wheelSize, 200);
+
     return {
         wheelSize,
         centerX: wheelSize / 2,
@@ -66,16 +80,31 @@ const getWheelDimensions = () => {
 
 // Generic Decision Wheel Component
 const DecisionWheel = React.memo(function DecisionWheel({ options, rotationValue }) {
-    const [dimensions, setDimensions] = useState(getWheelDimensions());
+    const [dimensions, setDimensions] = useState(() => getWheelDimensions());
+    const [isInitialized, setIsInitialized] = useState(false);
 
-    // Update dimensions on window resize
+    // Force initialization and handle resize
     useEffect(() => {
+        // Force immediate dimension calculation
+        const initialDimensions = getWheelDimensions();
+        setDimensions(initialDimensions);
+        
+        // Small delay to ensure DOM is ready
+        const timer = setTimeout(() => {
+            setIsInitialized(true);
+            setDimensions(getWheelDimensions());
+        }, 100);
+
         const handleResize = () => {
             setDimensions(getWheelDimensions());
         };
 
         const subscription = Dimensions.addEventListener('change', handleResize);
-        return () => subscription?.remove();
+        
+        return () => {
+            clearTimeout(timer);
+            subscription?.remove();
+        };
     }, []);
 
     const { wheelSize, centerX, centerY, radius } = dimensions;
@@ -84,6 +113,22 @@ const DecisionWheel = React.memo(function DecisionWheel({ options, rotationValue
         '#FF6F61', '#6B5B95', '#88B04B', '#F7CAC9', '#92A8D1',
         '#E77B7C', '#D65076', '#45B8AC', '#C6B49D', '#ADADAD'
     ];
+
+    // Don't render until initialized to prevent layout issues
+    if (!isInitialized || wheelSize <= 0) {
+        return (
+            <View style={[styles.wheelContainer, { 
+                width: 250, 
+                height: 250, 
+                borderRadius: 125,
+                backgroundColor: '#f0f0f0',
+                justifyContent: 'center',
+                alignItems: 'center'
+            }]}>
+                <Text style={{ color: '#666', fontSize: 16 }}>Loading...</Text>
+            </View>
+        );
+    }
 
     return (
         <Animated.View
@@ -102,7 +147,12 @@ const DecisionWheel = React.memo(function DecisionWheel({ options, rotationValue
                 },
             ]}
         >
-            <Svg height={wheelSize} width={wheelSize} viewBox={`0 0 ${wheelSize} ${wheelSize}`}>
+            <Svg 
+                height={wheelSize} 
+                width={wheelSize} 
+                viewBox={`0 0 ${wheelSize} ${wheelSize}`}
+                style={{ width: wheelSize, height: wheelSize }}
+            >
                 <G origin={`${centerX}, ${centerY}`} rotation={-90}>
                     {options.map((option, index) => {
                         const startAngle = index * segmentAngle;
@@ -250,7 +300,8 @@ const DecisionSpinnerApp = () => {
         { id: '5', name: 'Work on a hobby' },
     ]);
     const [newItem, setNewItem] = useState('');
-    const [screenData, setScreenData] = useState(Dimensions.get('window'));
+    const [screenData, setScreenData] = useState(() => Dimensions.get('window'));
+    const [isAppReady, setIsAppReady] = useState(false);
     const spinValue = useRef(new Animated.Value(0)).current;
 
     const [modalVisible, setModalVisible] = useState(false);
@@ -260,12 +311,25 @@ const DecisionSpinnerApp = () => {
     const [modalOnCancel, setModalOnCancel] = useState(() => () => setModalVisible(false));
     const [showModalCancelButton, setShowModalCancelButton] = useState(false);
 
-    // Update screen dimensions
+    // Initialize app and update screen dimensions
     useEffect(() => {
+        // Force initial screen data update
+        const initialScreenData = Dimensions.get('window');
+        setScreenData(initialScreenData);
+        
+        // Mark app as ready after a short delay to ensure proper initialization
+        const initTimer = setTimeout(() => {
+            setIsAppReady(true);
+        }, 150);
+
         const subscription = Dimensions.addEventListener('change', ({ window }) => {
             setScreenData(window);
         });
-        return () => subscription?.remove();
+        
+        return () => {
+            clearTimeout(initTimer);
+            subscription?.remove();
+        };
     }, []);
 
     const showCustomAlert = (title, message, onConfirmCallback = () => { }, onCancelCallback = () => { }, showCancel = false) => {
@@ -339,6 +403,28 @@ const DecisionSpinnerApp = () => {
     const isLandscape = screenData.width > screenData.height;
     const isTablet = Math.min(screenData.width, screenData.height) > 600;
     const isDesktop = Math.min(screenData.width, screenData.height) > 1024;
+
+    // Show loading state until app is ready
+    if (!isAppReady) {
+        return (
+            <View style={[styles.container, { justifyContent: 'center' }]}>
+                <Text style={[styles.header, { marginBottom: 20 }]}>
+                    Decision Spinner
+                </Text>
+                <View style={{
+                    width: 250,
+                    height: 250,
+                    borderRadius: 125,
+                    backgroundColor: '#f0f0f0',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    marginBottom: 20
+                }}>
+                    <Text style={{ color: '#666', fontSize: 16 }}>Loading...</Text>
+                </View>
+            </View>
+        );
+    }
 
     return (
         <View style={[styles.container, isLandscape && styles.containerLandscape]}>
